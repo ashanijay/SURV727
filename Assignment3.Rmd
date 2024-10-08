@@ -58,13 +58,13 @@ print(places_east)
 ```
 # Build a small loop.
 
-```{r cars4}
+```{r cars5}
 pops <- pop
 ```
 
 A loop was used to grab the population tables from each of the pages that correspond to the neighboring neighborhoods. The columns are appended to the exisitng table. The final table is printed below. 
 
-```{r cars5}
+```{r cars6}
 for (i in places_east){
   base_url <- "https://en.wikipedia.org/wiki/"
   new_url <- paste0(base_url, i)
@@ -81,7 +81,7 @@ print(pops)
 # Scrape the text without any of the information. 
 
 The text is scrapped without any of the information in the margins and headers. The first description is printed below. 
-```{r cars6}
+```{r cars7}
 library(tibble)
 my.url <- read_html("https://en.wikipedia.org/wiki/Grand_Boulevard,_Chicago")
 text <- html_text(html_nodes(my.url, xpath = '//p'))
@@ -93,7 +93,7 @@ print(descriptions)
 
 The descriptions are printed below using a similar loop as below. 
 
-```{r cars7}
+```{r cars8}
 for (i in places_east){
   base_url <- "https://en.wikipedia.org/wiki/"
   new_url <- paste0(base_url, i)
@@ -108,7 +108,7 @@ print(descriptions)
 # Create tokens.
 
 The most common words overall are "park," "hyde," "chicago," "kenwood," and "street."
-```{r cars8}
+```{r cars9}
 library(tidytext)
 library(dplyr)
 ##need to convert the data so that it has one-token-per-document-per-row
@@ -133,7 +133,8 @@ Grand Boulevard, Chicago has words that describe the people that live in the "co
 Hyde Park, Chicago has words that describe nature including "lake" and academia using the word "university."
 Kenwood, Chicago has words that desribe the community and schooling. It also has the names of some of the neighboring towns. 
 Oakland, Chicago has words that desribe the building and homes in the town. The word "lake" is also mentioned like in Hyde Park. Community is also mentioned like Grand Boulevard and Kenwood. 
-```{r cars9}
+
+```{r cars10}
 ##plot the common words within each location
 common_words_location <- tidy_descriptions %>%
      group_by(Location) %>%
