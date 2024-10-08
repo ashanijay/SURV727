@@ -1,0 +1,164 @@
+---
+title: "Assignment 3"
+author: "Ashani Jayasekera"
+date: "2024-10-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("xml2")
+#install.packages("rvest")
+#install.packages("jsonlite")
+#install.packages("robotstxt")
+#install.packages("RSocrata")
+
+library(xml2)
+library(rvest)
+library(jsonlite)
+library(robotstxt)
+library(RSocrata)
+```
+
+## Web Scraping
+
+The html from the url is scrapped from the web.
+
+```{r cars1}
+url <- read_html("https://en.wikipedia.org/wiki/Grand_Boulevard,_Chicago")
+```
+
+# Gather the tables. 
+All the tables are scrapped using the url's html. The historical population table extracted in particular and printed. 
+
+```{r cars2}
+allTables <- html_table(url)
+class(allTables)
+str(allTables)
+
+##pull the historical population table
+hist.pop.table <- allTables[[2]]
+print(hist.pop.table)
+```
+# Additional table formatting. 
+
+The final table, after formatting, is below. 
+```{r cars3}
+pop <- hist.pop.table[1:10, -3]
+pop
+```
+# Grab the community areas east of Grand Boulevard and save them as a character vector. 
+The printed vector of community areas east of Grand Boulevard is below. 
+```{r cars4}
+adjacent.places <- allTables[[3]]
+east.places <- unlist(as.vector(adjacent.places[-1,3]))
+east.places <- east.places[!east.places == ""]
+places_east <- gsub(" ", "_", east.places) 
+print(places_east)
+```
+# Build a small loop.
+
+```{r cars4}
+pops <- pop
+```
+
+A loop was used to grab the population tables from each of the pages that correspond to the neighboring neighborhoods. The columns are appended to the exisitng table. The final table is printed below. 
+
+```{r cars5}
+for (i in places_east){
+  base_url <- "https://en.wikipedia.org/wiki/"
+  new_url <- paste0(base_url, i)
+  my.url <- read_html(new_url)
+  allTables <- html_table(my.url)
+  hist.pop.table <- allTables[[2]][1:10, -3]
+  pops <- cbind(pops, hist.pop.table)
+}
+print(pops)
+```
+
+## Scraping and Analysxing Text Data
+
+# Scrape the text without any of the information. 
+
+The text is scrapped without any of the information in the margins and headers. The first description is printed below. 
+```{r cars6}
+library(tibble)
+my.url <- read_html("https://en.wikipedia.org/wiki/Grand_Boulevard,_Chicago")
+text <- html_text(html_nodes(my.url, xpath = '//p'))
+description <-text %>% paste(collapse = ' ')
+descriptions <- tibble(data.frame(Location = "Grand_Boulevard,_Chicago", Text_Description = description))
+print(descriptions)
+```
+# Create a tibble with the location and the text using a loop.
+
+The descriptions are printed below using a similar loop as below. 
+
+```{r cars7}
+for (i in places_east){
+  base_url <- "https://en.wikipedia.org/wiki/"
+  new_url <- paste0(base_url, i)
+  my.url <- read_html(new_url)
+  text <- html_text(html_nodes(my.url, xpath = '//p'))
+  description <-text %>% paste(collapse = ' ')
+  description <- tibble(data.frame(Location = i, Text_Description = description))
+  descriptions <- rbind(descriptions, description)
+}
+print(descriptions)
+```
+# Create tokens.
+
+The most common words overall are "park," "hyde," "chicago," "kenwood," and "street."
+```{r cars8}
+library(tidytext)
+library(dplyr)
+##need to convert the data so that it has one-token-per-document-per-row
+
+tidy_descriptions <- descriptions %>%
+  unnest_tokens(word, Text_Description)
+
+##remove stop words
+data(stop_words)
+tidy_descriptions <- tidy_descriptions %>%
+  anti_join(stop_words)
+
+##find the most common words in all the descriptions
+common_words <- tidy_descriptions %>%
+  count(word, sort = T)
+print(common_words)
+```
+
+# Plot the common words with each location. 
+See the plots below. The most common words for each town are the names of the town itself and often the city of "Chicago" is mentioned. Some of the differences in the most common words are: 
+Grand Boulevard, Chicago has words that describe the people that live in the "community" using words like "residents" and "american."
+Hyde Park, Chicago has words that describe nature including "lake" and academia using the word "university."
+Kenwood, Chicago has words that desribe the community and schooling. It also has the names of some of the neighboring towns. 
+Oakland, Chicago has words that desribe the building and homes in the town. The word "lake" is also mentioned like in Hyde Park. Community is also mentioned like Grand Boulevard and Kenwood. 
+```{r cars9}
+##plot the common words within each location
+common_words_location <- tidy_descriptions %>%
+     group_by(Location) %>%
+     count(word, sort = T)
+
+mostCom_location <- common_words_location %>% group_by(Location) %>% slice_max(c(`n`), n = 10)
+
+library(ggplot2)
+df_split <- split(mostCom_location, mostCom_location$Location)
+
+lapply(df_split, function(df) {
+  ggplot(df, aes(x = word, y = n, group = Location, fill = word)) +
+    geom_col() +
+    theme_classic(base_size = 16) +
+      labs(y= "Count", x= "Word", title = paste0("Top 10 Most Common Words for Neighborhood ", df$Location[1]))+
+    theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(colour = "black", size=1),
+        strip.background = element_blank(),
+        panel.spacing = unit(2, "lines"),
+        legend.position="bottom",
+        legend.direction = "horizontal", 
+        plot.title= element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1.1, hjust=1,size = 10))
+    
+})
+
+```
