@@ -20,6 +20,9 @@ library(robotstxt)
 library(RSocrata)
 ```
 
+## Git and GitHub
+The link to the Github repository where Assignment 3 can be found at https://github.com/ashanijay/SURV727. 
+
 ## Web Scraping
 
 The html from the url is scrapped from the web.
