@@ -1,0 +1,153 @@
+---
+title: "Assignment 4"
+author: "Ashani Jayasekera"
+date: "2024-10-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DBI)
+```
+
+## Assignment 4
+
+The link to the GitHub repository is: https://github.com/ashanijay/SURV727. The assignment is Assignment4.rmd.
+
+```{r cars1}
+project <- "surv727-hw4-ajayase1"
+
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "bigquery-public-data",
+  dataset = "chicago_crime",
+  billing = project
+  )
+con
+dbListTables(con)
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{sql connection = con}
+SELECT count(primary_type), count(*)
+FROM crime
+WHERE year = 2016
+LIMIT 10
+```
+The number of arrests grouped by primary_type in 2016 is in the table below. 
+```{sql connection= con, message = FALSE}
+SELECT primary_type,
+      COUNTIF(year = 2016) AS arrests,
+FROM crime
+WHERE year = 2016
+GROUP BY primary_type
+ORDER BY COUNTIF(year = 2016) DESC
+LIMIT 10
+
+```
+
+The date is now used for grouping instead of primary_type.
+```{sql connection= con, message = FALSE}
+SELECT date,
+      COUNTIF(year = 2016) AS arrests,
+FROM crime
+WHERE year = 2016
+GROUP BY date
+ORDER BY COUNTIF(year = 2016) DESC
+LIMIT 10
+
+```
+The number of arrests grouped by hour of the day in 2016 is below. 
+```{sql connection= con, message = FALSE}
+SELECT EXTRACT(HOUR FROM date),
+      COUNTIF(year = 2016) AS arrests,
+FROM crime
+WHERE year = 2016
+GROUP BY EXTRACT(HOUR FROM date)
+ORDER BY COUNTIF(year = 2016) DESC
+LIMIT 10
+
+```
+
+Now the arrests focused on homicide are below ordered by year in descending order. 
+```{sql connection= con, message = FALSE}
+SELECT year,
+      COUNTIF(primary_type = "HOMICIDE") AS arrest,
+FROM crime
+WHERE primary_type = "HOMICIDE"
+GROUP BY year
+ORDER BY COUNTIF(primary_type = "HOMICIDE") DESC
+LIMIT 10
+
+
+```
+The districts with the highest numbers of arrests in 2015 and 2016 are below. They are grouped by year and district. 
+```{sql connection= con, message = FALSE}
+SELECT year, district,
+      COUNTIF(year = 2015) AS arrests_2015,
+      COUNTIF(year = 2016) AS arrests_2016
+FROM crime
+WHERE year = 2015 OR year = 2016
+GROUP BY district, year
+ORDER BY COUNTIF(year = 2015) DESC, COUNTIF(year = 2016) DESC
+
+
+```
+Now the code is in R via the DBI package. 
+The number of arrests grouped by primary_type of district 11 in year 2016 is below. 
+```{r cars3}
+query <- "
+  SELECT primary_type, COUNT(*) AS arrests
+  FROM crime
+  WHERE year = 2016 AND district = 11
+  GROUP BY primary_type
+  ORDER BY arrests DESC
+  LIMIT 10
+"
+
+dbGetQuery(con, query)
+
+```
+The same query is now written using the dbplyr package. 
+
+```{r cars4}
+library(dplyr)
+crime_tbl <- tbl(con, "crime")
+
+arrest_data <- crime_tbl %>%
+  filter(year == 2016, district == 11) %>%
+  group_by(primary_type) %>%
+  summarise(arrests = n()) %>%
+  arrange(desc(arrests)) %>%
+  head(10) %>%
+  collect() 
+
+print(arrest_data)
+```
+
+Count the number of arrests grouped by primary_type and year, still only for district 11.
+Arrange the result by year. The results are below. 
+
+```{r cars5}
+
+arrest_data2 <- crime_tbl %>%
+  filter(district == 11) %>%
+  group_by(primary_type, year) %>%
+  summarise(arrests = n()) %>%
+  arrange(desc(year)) %>%
+  head(10) %>%
+  collect() 
+
+print(arrest_data2)
+```
+The connection is now closed. 
+```{r cars5}
+dbDisconnect(con)
+```
+
+
