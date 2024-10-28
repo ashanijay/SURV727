@@ -147,7 +147,7 @@ arrest_data2 <- crime_tbl %>%
 print(arrest_data2)
 ```
 The connection is now closed. 
-```{r cars5}
+```{r cars6}
 dbDisconnect(con)
 ```
 
