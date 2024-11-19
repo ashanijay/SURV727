@@ -108,7 +108,6 @@ markers <- as.data.frame(cbind(bike_stat_table$long, bike_stat_table$lat))
 
 ```{r}
 # ggmap
-ggmap::register_google(key = "AIzaSyAQf9hLw_Gppu2jKPUl0oHDc8ChXrxCTZs", write = TRUE)
 
 ```
 
