@@ -139,7 +139,6 @@ There is one in the far West and a couple in the far East.
 ```{r}
 ##Do this in stadia
 ##key
-stadia_key <- "99be1889-5df6-4c8e-ac59-82cc731933cf"
 register_stadiamaps(stadia_key, write = TRUE)
 bbox <- c(left = -97.78375, bottom = 30.24258, right = -97.69807, top = 30.29439)
 map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner_lite")
