@@ -1,0 +1,469 @@
+---
+title: "FinalProject"
+author: "Ashani Jayasekera"
+date: "2024-11-09"
+output: html_document
+---
+
+# Bike station visualization
+
+Load the bike station table with long and lat.
+
+Load a map of Austin, TX.
+
+Combine to look at the distribution of bike stations. Mark the capacity.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DBI)
+library(dplyr)
+library(tidyverse)
+library(DBI)
+library(dbplyr)
+library(bigrquery)
+library(ggmap)
+library(RColorBrewer)
+```
+
+## Connect to BigQuery
+
+```{r}
+project <- "surv727-finalproject"
+
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "bigquery-public-data",
+  dataset = "austin_bikeshare",
+  billing = project
+  )
+con
+```
+
+```{r}
+dbListTables(con)
+##there are two available tables (bikshare_stations and bikeshare_trips)
+```
+
+
+```{r}
+# look at variables in the bike station table
+dbListFields(con, "bikeshare_stations")
+```
+
+## Store the Bike Station table to R object for ggmap
+
+Check whether there are NA values in name or location
+
+There are 82 working bike stations currently.
+News reports planning on opening more than 1000 new stations
+
+```{sql connection = con}
+SELECT COUNT (DISTINCT name)
+FROM bikeshare_stations
+WHERE name IS NOT NULL AND
+location IS NOT NULL AND 
+number_of_docks IS NOT NULL;
+```
+```{sql connection = con}
+SELECT name, location, number_of_docks,
+FROM bikeshare_stations
+WHERE name IS NOT NULL AND
+location IS NOT NULL AND 
+number_of_docks IS NOT NULL
+LIMIT 5;
+```
+
+Store the SQL query into a R object
+
+```{r}
+# store the query in a R object
+
+query <-
+  "SELECT name, location, number_of_docks, 
+FROM bikeshare_stations
+WHERE name IS NOT NULL AND
+location IS NOT NULL AND 
+number_of_docks IS NOT NULL AND
+number_of_docks != 0;"
+
+# store the result in a R table
+bike_stat_table <- dbGetQuery(con, query)
+str(bike_stat_table)
+
+```
+
+```{r}
+head(bike_stat_table)
+#need to split the latitude and longitutde
+split_coords <- strsplit(gsub("[()]", "", bike_stat_table$location), ", ")
+bike_stat_table$lat <- as.numeric(sapply(split_coords, function(x) x[1]))
+bike_stat_table$long <- as.numeric(sapply(split_coords, function(x) x[2]))
+
+markers <- as.data.frame(cbind(bike_stat_table$long, bike_stat_table$lat))
+
+```
+
+## Create a map
+
+```{r}
+# ggmap
+ggmap::register_google(key = "AIzaSyAQf9hLw_Gppu2jKPUl0oHDc8ChXrxCTZs", write = TRUE)
+
+```
+
+```{r}
+# get Austin map 
+library(ggmap)
+
+get_googlemap(center = "Austin", zoom = 13, maptype = "terrain", markers = markers) %>% ggmap()
+
+
+```
+```{r}
+markers$dockNum <- bike_stat_table$number_of_docks
+markers$col <- ifelse(markers$dockNum <= 10, "red", "blue")
+markers$col <- ifelse(markers$dockNum > 10 & markers$dockNum <= 15, "blue", markers$col)
+markers$col <- ifelse(markers$dockNum > 15 & markers$dockNum <= 20, "green", markers$col)
+markers$col <- ifelse(markers$dockNum > 20, "orange",  markers$col)
+
+austin <- qmap('Austin', source="google", maptype = "terrain", api_key = "AIzaSyAQf9hLw_Gppu2jKPUl0oHDc8ChXrxCTZs", zoom=13)
+##need to adjust this
+austin + geom_point(data = markers, aes(x=V1, y = V2, color = col), size = 3, alpha = 0.5)
+
+```
+
+
+Bike stations are mainly in downtown Austin. They are also some in Zilker Park and the UT Austin campus. 
+There is one in the far West and a couple in the far East. 
+
+```{r}
+##Do this in stadia
+##key
+stadia_key <- "99be1889-5df6-4c8e-ac59-82cc731933cf"
+register_stadiamaps(stadia_key, write = TRUE)
+bbox <- c(left = -97.78375, bottom = 30.24258, right = -97.69807, top = 30.29439)
+map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner_lite")
+
+ggmap(map) + 
+geom_point(aes(x = long, y = lat, color=number_of_docks), data = bike_stat_table, alpha = .8, size=6) +
+scale_color_gradient(low = "blue", high = "orange")
+```
+
+
+```{r}
+# mean of num of bikes at bike station
+summary(bike_stat_table$number_of_docks)
+
+hist(bike_stat_table$number_of_docks)
+
+#Most bike stations are small, with some exceptions where there are more than 20 bikes. Most tend to be around the center of the distribution. 
+
+# % of station less than or equal to 13 (median) bikes # 72%
+bike_stat_table %>%
+  filter(number_of_docks <= 13) %>%
+  count()/nrow(bike_stat_table)
+
+# top 10 bike stations with most num of bikes
+top10_most_capacity <- bike_stat_table %>%
+  arrange(desc(number_of_docks)) %>%
+  head(10)
+
+top10_most_capacity
+
+```
+
+```{r}
+#number of trips by year and month
+query2 <-
+  "SELECT EXTRACT(YEAR FROM start_time) AS year,EXTRACT(MONTH FROM start_time) AS month, count(*) AS num_of_trips
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0
+GROUP BY EXTRACT(YEAR FROM start_time), EXTRACT(MONTH FROM start_time);"
+
+# store the result in a R table
+trip_year_month_table <- dbGetQuery(con, query2)
+```
+
+```{r}
+trip_year_month_table %>% group_by(year) %>% summarise(sum_trips = sum(num_of_trips))
+
+# plot the year and month usage with a line plot
+# convert year and month to be categorical variable
+mycolors = c(brewer.pal(name="Dark2", n = 8), brewer.pal(name="Paired", n = 6))
+
+trip_year_month_table$month <- as.factor(trip_year_month_table$month)
+trip_year_month_table$year <- as.factor(trip_year_month_table$year)
+ggplot(data=trip_year_month_table, aes(x=month, y=num_of_trips, group=year, color=year)) +
+  geom_line(size = 1.2, alpha = 0.8) +
+    scale_color_manual(values = mycolors)
+```
+
+2 things: 
+
+1. 2019 and 2020 had the lowest number of trips. Reason: COVID-19?
+
+1.  The number of trips increased year by year from 2013 to 2018. 2021-2023 there is another increase, less than the total number of trips taken in 2018.  
+The reason is likely twofold: over time more people started to know and use the shared bikes, and the bike program continued to expand their coverage and capacity, attracting more new users.
+
+2.  There is an apparent seasonal difference in terms of number of trips. There are two peaks. Once between February adn May and another between September and November. This is when there are more moderate temperatures in Austin. Way too hot in the summer. In the winter months, it may be too cold. 
+
+
+## 2.3 Bike trip analysis -- trip duration
+
+Another factor to look at is the duration of trips. Figure 3 and Figure 4 below show the average trip duration (in minute) by year and by month.
+
+```{r}
+# trip duration by year
+query3 <-
+  "SELECT EXTRACT(YEAR FROM start_time) AS year, ROUND(AVG(duration_minutes), 1) as Avg_trip_time
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0
+GROUP BY year
+ORDER BY year;"
+
+# store the result in a R table
+avg_duration_year <- dbGetQuery(con, query3)
+```
+
+```{r}
+# trip duration by month
+query4 <-
+  "SELECT EXTRACT(MONTH FROM start_time) AS month, ROUND(AVG(duration_minutes), 1) as Avg_trip_time
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0
+GROUP BY month
+ORDER BY month;"
+
+# store the result in a R table
+avg_duration_month <- dbGetQuery(con, query4)
+```
+
+```{r}
+
+avg_duration_year$year <- as.factor(avg_duration_year$year)
+
+ggplot(data=avg_duration_year, aes(x=year, y=Avg_trip_time)) +
+  geom_bar(stat="identity", width=0.7, fill="steelblue") + 
+  geom_text(aes(label=Avg_trip_time), vjust=1.6, color="white", size=3) +
+  labs(y= "Avg trip duration (min)") +
+  theme_minimal()
+
+```
+
+```{r}
+
+avg_duration_month$month <- as.factor(avg_duration_month$month)
+
+ggplot(data=avg_duration_month, aes(x=month, y=Avg_trip_time)) +
+  geom_bar(stat="identity", width=0.8, fill="steelblue") + 
+  geom_text(aes(label=Avg_trip_time), vjust=1.6, color="white", size=3) +
+  labs(y= "Avg trip duration (min)") +
+  theme_minimal()
+
+```
+
+What can we tell from these figures?
+
+## 2.4 Bike trip analysis -- user types
+
+
+```{r}
+query5 <-
+"SELECT 
+    CASE 
+        WHEN subscriber_type IN (
+            'Annual', 'Annual ', 'Annual Membership', 'Annual Membership ', 
+            'Annual Pass', 'Annual Pass (30 minute)', 'Annual Pass (Original)', 
+            'Annual Plus', 'Annual Plus Membership', 'Denver B-cycle Founder', 
+            'Founding Member', 'Heartland Pass (Annual Pay)', 'Heartland Pass (Monthly Pay)', 
+            'HT Ram Membership', 'Local30', 'Local30 ($11 plus tax)', 'Local31', 
+            'Local365', 'Local365- 1/2 off Anniversary Special', 'Local365 ($80 plus tax)', 
+            'Local365 Youth (age 13-17 riders)', 'Local365 Youth (age 13-17 riders)- 1/2 off Special', 
+            'Local365 Youth with helmet (age 13-17 riders)', 'Madtown Monthly', 
+            'Membership: pay once one-year commitment', 'Membership: pay once, one-year commitment', 
+            'Republic Rider (Annual)', 'Semester Membership', 'U.T. Student Membership', 
+            'UT Student Membership') 
+        THEN 'Subscriber'
+        ELSE 'SingleUse'
+    END AS customertype,
+    COUNT(*) AS num_of_trip,
+    ROUND(AVG(duration_minutes), 1) AS avg_trip_time
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL 
+  AND duration_minutes != 0
+GROUP BY customertype;"
+
+# store the result in a R table
+customerInfo <- dbGetQuery(con, query5)
+
+#Link to desciptions of the membership types: https://www.mountbonnell.info/getting-around-austin/b-cycle-austin
+
+#Annual: unlimited access
+#Monthly: unlimited in the month
+#pay as you ride: occasional riders
+#student membership: discounted rates, subscription model
+#local30: monthly membership granting unlimited 60-minute trips and charges $4 for every additional 30 minutes of use.
+#Explorer plan, which allows users unlimited 60-minute trips over a 24-hour period
+
+##probably need to do some sort of concatenation
+```
+
+From the queried result above, we can see differences among subscribers and single use (and weekender) customers in terms of their bike usage. First, subscribers took more bike trips than customers -- about 1.5 times more. Second, the trips taken by subscribers on average were around 34.8 minutes, while the trips taken by customers were much shorter on average 20 minutes; the difference in the average trip duration is around 15 mintues. 
+
+These differences are likely associated with the different purposes of trips: subscribers likely use the trip for commuting or short-distance connecting, while the customers are more likely to be tourists who bought a day pass or single ride pass and used the bike to tour the city, and hence the shorter trip duration.
+
+
+```{sql connection = con}
+SELECT
+  CONCAT(start_station_id, " to ", end_station_id) as route, 
+  COUNT(*) as num_trips,
+  ROUND(AVG(cast(duration_minutes as int64)),1) as duration
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0
+GROUP BY start_station_id, end_station_id
+ORDER BY num_trips DESC
+LIMIT 10;
+```
+
+```{sql connection = con}
+SELECT
+  CONCAT(start_station_name, " to ", end_station_name) as route, 
+  COUNT(*) as num_trips,
+  ROUND(AVG(cast(duration_minutes as int64)),1) as duration
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0
+GROUP BY start_station_name, end_station_name
+ORDER BY num_trips DESC
+LIMIT 10;
+```
+
+From the table, we can see that:
+
+-   There are some "routes" that share the same start station and end station. The fourth most popular routes is this type of route. 
+
+-   For routes that have different start and end stations, the most popular route is "Dean Keeton/Whitis to 21st/Speedway @ PCL", which was taken 17672 times and for on average 8.4 minutes.
+
+-   The next two popular routes with different start and end stations are quite similar. Both start from 21st/Speedway @ PCL, and end at Dean Keeton/Speedway or Dean Keeton/Whitis. These 2 routes have a volume of 16301 times and 16116 times, and the average duration is 7.4 minutes  and 12.7 minutes respectivlly.
+
+However, when looking at popular routes taken by different types of users, we see very different patterns among subscribers and customers.
+
+```{r}
+# top 5 most popular routes by subscriber
+query7 <-"
+SELECT 
+    CASE 
+        WHEN subscriber_type IN (
+            'Annual', 'Annual ', 'Annual Membership', 'Annual Membership ', 
+            'Annual Pass', 'Annual Pass (30 minute)', 'Annual Pass (Original)', 
+            'Annual Plus', 'Annual Plus Membership', 'Denver B-cycle Founder', 
+            'Founding Member', 'Heartland Pass (Annual Pay)', 'Heartland Pass (Monthly Pay)', 
+            'HT Ram Membership', 'Local30', 'Local30 ($11 plus tax)', 'Local31', 
+            'Local365', 'Local365- 1/2 off Anniversary Special', 'Local365 ($80 plus tax)', 
+            'Local365 Youth (age 13-17 riders)', 'Local365 Youth (age 13-17 riders)- 1/2 off Special', 
+            'Local365 Youth with helmet (age 13-17 riders)', 'Madtown Monthly', 
+            'Membership: pay once one-year commitment', 'Membership: pay once, one-year commitment', 
+            'Republic Rider (Annual)', 'Semester Membership', 'U.T. Student Membership', 
+            'UT Student Membership') 
+        THEN 'Subscriber'
+        ELSE 'SingleUse'
+    END AS customertype,
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0 AND 
+customertype = 'Subscriber'
+GROUP BY start_station_name, end_station_name, usertype
+ORDER BY num_trips DESC
+LIMIT 10;"
+subscriber <- dbGetQuery(con, query7)
+
+```
+
+```{r}
+# top 5 most popular routes by singleUse
+query8 <-"
+SELECT 
+    CASE 
+        WHEN subscriber_type IN (
+            'Annual', 'Annual ', 'Annual Membership', 'Annual Membership ', 
+            'Annual Pass', 'Annual Pass (30 minute)', 'Annual Pass (Original)', 
+            'Annual Plus', 'Annual Plus Membership', 'Denver B-cycle Founder', 
+            'Founding Member', 'Heartland Pass (Annual Pay)', 'Heartland Pass (Monthly Pay)', 
+            'HT Ram Membership', 'Local30', 'Local30 ($11 plus tax)', 'Local31', 
+            'Local365', 'Local365- 1/2 off Anniversary Special', 'Local365 ($80 plus tax)', 
+            'Local365 Youth (age 13-17 riders)', 'Local365 Youth (age 13-17 riders)- 1/2 off Special', 
+            'Local365 Youth with helmet (age 13-17 riders)', 'Madtown Monthly', 
+            'Membership: pay once one-year commitment', 'Membership: pay once, one-year commitment', 
+            'Republic Rider (Annual)', 'Semester Membership', 'U.T. Student Membership', 
+            'UT Student Membership') 
+        THEN 'Subscriber'
+        ELSE 'SingleUse'
+    END AS customertype,
+FROM bikeshare_trips
+WHERE duration_minutes IS NOT NULL AND
+duration_minutes != 0 AND 
+customertype = 'SingleUse'
+GROUP BY start_station_name, end_station_name, usertype
+ORDER BY num_trips DESC
+LIMIT 10;"
+singleUse <- dbGetQuery(con, query9)
+
+```
+
+bbox <- c(left = -97.78375, bottom = 30.24258, right = -97.69807, top = 30.29439)
+map <- get_stadiamap(bbox = bbox, zoom = 12, maptype = "stamen_toner_lite")
+
+ggmap(map) + 
+geom_point(aes(x = long, y = lat, color=number_of_docks), data = bike_stat_table, alpha = .8, size=6) +
+scale_color_gradient(low = "blue", high = "orange")
+```{r}
+# get Austin map 
+bbox2 <- c(left = -97.78375, bottom = 30.24258, right = -97.69807, top = 30.29439)
+map2 <- get_stadiamap(bbox = bbox2, zoom = 12, maptype = "stamen_toner_lite")
+```
+
+```{r}
+# store subscriber top 5 routes in a df
+pop_route_subscriber <- data.frame(id = 1:5, 
+                   lat_1 = c(40.74174, 40.74174, 40.75187, 40.74692, 40.75187), 
+                   lon_1 = c(-73.99416, -73.99416, -73.97771, -74.00452, -73.97771), 
+                   lat_2 = c(40.7455, 40.74692, 40.7502, 40.74475, 40.74096), 
+                   lon_2 = c(-74.00197, -74.00452, -73.99093, -73.99915, -73.98602),
+                   route = c("W 21 St & 6 Ave to W 22 St & 9 Ave", "W 21 St & 6 Ave to W 22 St & 10 Ave","Pershing Square North to W 33 St & 7 Ave", "W 22 St & 10 Ave to W 22 St & 8 Ave", "Pershing Square North to E 24 St & Park Ave S"))
+
+```
+
+```{r}
+#| label: top_routes_by_subscriber
+#| fig-cap: "Most popular bike routes taken by subscribers"
+#| output: true
+
+ggmap(map2) + 
+geom_segment(data = pop_route_subscriber, 
+             aes(x = lon_1, y = lat_1, xend = lon_2, yend = lat_2, color = route), size = 1.5, alpha = 0.8, lineend = "round")
+```
+
+```{r}
+# store customer top 5 routes in a df
+pop_station_customer <- data.frame(id = 1:4, 
+                   lat = c(40.76591, 40.7644, 40.71273, 40.76916), 
+                   lon = c(-73.97634, -73.97371, -74.00461, -73.98192), 
+                   route = c("Central Park S & 6 Ave", "Grand Army Plaza & Central Park S",'Centre St & Chambers St','Broadway & W 60 St'))
+
+```
+
+```{r}
+#| label: top_routes_by_customer
+#| fig-cap: "Most popular bike routes taken by customers"
+#| output: true
+
+ggmap(map2) + 
+geom_point(aes(x = lon, y = lat,  color=route), data = pop_station_customer, alpha = .8, size=5)
+```
+
+.
