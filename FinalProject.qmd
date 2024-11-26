@@ -24,11 +24,11 @@ This project analyzes the usage of the [Austin Metro BikeShare ](https://data.au
 
 Austin, TX is currently expanding their bike-sharing program with a [\$21 million investment](https://www.kxan.com/news/local/austin/capmetro-rolling-out-21m-metrobike-expansion-plan/). Using this study, city developers can determine where new docking stations are needed and where there is no existing stations. Furthermore, city officials can understand their user demographic  better, and when during the year bikes are used more than others.
 
-## 1.2 Source of Data
+## 1.2 Data Source
 
 The data used for this project is "[Austin Bikeshare](https://console.cloud.google.com/marketplace/browse?filter=solution-type:dataset&inv=1&invt=AbiAsg)", a public database from Austin, TX that is hosted on Google BigQuery. There are two 2 tables in this dataset: “bikeshare_stations,” which includes the locations and the number of bikes that can be docked at a given station, and “bikeshare_trips,” which include data from 2.27 million bike trips taken from 2013 to 2024. The trip date including the start and end time, duration, start and end stations, and the user type are the variables that are used in this study.
 
-## 1.3 Github Repository, Packages, maps
+## 1.3 Github Repository
 
 The link to the GitHub repository is: https://github.com/ashanijay/SURV727.
 
@@ -36,7 +36,7 @@ The main R packages used in this study are `DBI`, `ggplot`, `ggmap`, and `dbplyr
 
 # 2. Analysis
 
-## 2.1 Bike Station analysis
+## 2.1 Bike Station
 
 To begin, the data is accessed via a connection to BigQuery using `DBI`'s `dbConnect` function.
 
@@ -129,7 +129,7 @@ Most bike stations have a capacity of 13 or fewer bikes. These are the purple st
 
 The mean number of bikes per station is 13.46, and the median is 13, suggesting again that most bike stations are small with exception of a few larger stations where the number of bikes is closer to 20.
 
-## 2.2 Analyzing the number of trips taken across years and months
+## 2.2 Number of Trips across Time
 
 Next, the number of bike trips taken by month and by year are analyzed. Figure 2 below shows the result.
 
@@ -173,7 +173,7 @@ There are three things that are of note from Figure 2.
 
 3.  There is an apparent seasonal difference in terms of number of trips. There are two peaks. Once between February and May and another between September and November. This is when there are more moderate temperatures in Austin. It is very warm in the summer and in the winter, it may be too cold to bike.
 
-## 2.3 Analyzing the time taken number of trips taken across years and months
+## 2.3 Length of Trips across Time
 
 Another factor to look at is the duration of trips. Figures 3 and 4 show the average trip duration (in minutes) by year and by month.
 
@@ -256,7 +256,7 @@ From Figure 3 and Figure 4, we can see two things:
 
 2.  There is a slight seasonal difference in terms of trip duration. The summer months have longer average trip duration (31 -33 minutes per trip) compared to the rest of the year save for the month of December (25-30 minutes per trip).
 
-## 2.4 Bike trip analysis -- user types
+## 2.4 Users of BikeShare
 
 Besides year and month, another interesting variable is whether the bike trip is made by a "subscriber", who holds an annual, monthly, or a student ridership plan, or a "single user", a person who either uses a day pass, a weekend pass, or a single trip ticket. There are 74 classifications of riders in this data. Using descriptions of the [different riders](https://www.mountbonnell.info/getting-around-austin/b-cycle-austin) the 74 classifications were collapsed into these two groups.
 
@@ -295,7 +295,7 @@ From the queried result above, we can see differences among subscribers and sing
 
 These differences are likely associated with the different purposes of trips. Subscribers likely use the trip for commuting or short-distance connecting, while the customers are more likely to be tourists or occasional users who bought a day pass or single ride pass and used the bike to go around the city, and hence the longer trip duration.
 
-## 2.4 Popular Bike Routes
+## 2.4 Most Popular Bike Routes
 
 Next, I analyzed the popular shared bike "routes." Below is the result of the top 10 most popular routes, their number of trips and average trip duration.
 
@@ -503,15 +503,13 @@ From these two figures, We can see several things that are of note.
 
 3. On the other hand, customers liked to rent and return bikes at stations in downtown Austin and the average duration was around 20-30 minutes. 
 
-# 3. Conclusion
-
-## 3.1 Summary
+# 3. Summary
 
 This project analyzes the Austin bike share program from 2013 to 2024. The focus was on the distribution of the bike stations, their capacity, the users of the bike share program and the routes that were taken by the people. This information could be used to inform where additional stations should be built. Visualizations are presented with this information as well. 
 
 
 In conclusion, the number of bike trips increased year over year until 2019-2020 which can be explained by the COVID-19 pandemic. After 2020, the increase in rider trips again and has continue to grow year over year. However, in 2019 and 2020, the average duration of the rides was at its peak. There are seasonal differences in terms of number of bike trips taken. There are more trips taken in the spring and autumn. However, the trips that are taken are longer in the summer than during the rest of the year. Different types of users show very different shared bike riding behavior. The subscribers (who bought the annual ridership plan) took shorter trips than others. The most popular routes for subscriber riders where in the The Drag area of Austin. Single use customers with limited passes or single trip users took longer rides that cover different areas of the city. Single use customers were also more likely to rent and return the bike at the same station.
 
-## 3.2 Limitation
+# 4. Limitation
 
 There are a few limitations for this study. The data does not include time information. Therefore, it was not possible to look directly at when during the day were the trips being taken. The data also does not include the specific user that took the trip, just the type of user they are. If this information was available we would be able to learn if there many repeat customers among those that have single use passes. It would be interesting to repeat this study using the new stations that are to be built to determine if the trends in this study hold. 
